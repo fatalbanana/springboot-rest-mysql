@@ -10,7 +10,7 @@
     </parent>
     <groupId>com.mycompany</groupId>
     <artifactId>spring-rest-mysql</artifactId>
-    <version>0.0.2-SNAPSHOT</version>
+    <version>0.0.3-SNAPSHOT</version>
     <name>spring-rest-mysql</name>
     <description>Demo project for Spring Boot</description>
 
@@ -40,9 +40,10 @@
         </dependency>
 
         <dependency>
-            <groupId>mysql</groupId>
-            <artifactId>mysql-connector-java</artifactId>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
+	    <version>42.3.1</version>
         </dependency>
 
         <dependency>

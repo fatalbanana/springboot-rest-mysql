@@ -1,7 +1,9 @@
 spring:
   jpa:
     hibernate.ddl-auto: update
+    properties:
+      hibernate.auto_quote_keyword: true
   datasource:
-    url: jdbc:mysql://${MYSQL_ADDR:localhost}:3306/test
-    username: spring-user
-    password: secret
+    url: ${DATASOURCE_URL}
+    username: ${DATASOURCE_USERNAME}
+    password: ${DATASOURCE_PASSWORD}
