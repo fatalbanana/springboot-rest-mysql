@@ -4,8 +4,11 @@ resource "kubernetes_namespace" "demo" {
   }
 }
 
-resource "kubernetes_config_map" "demo" {
+resource "kubernetes_config_map" "postgres-init" {
   metadata {
+    labels = {
+      app = "demo"
+    }
     name      = "demo"
     namespace = kubernetes_namespace.demo.metadata.0.name
   }
@@ -15,83 +18,89 @@ resource "kubernetes_config_map" "demo" {
   }
 }
 
-resource "kubernetes_config_map" "mysql-config" {
-  metadata {
-    name      = "mysql-config"
-    namespace = kubernetes_namespace.demo.metadata.0.name
-  }
 
-  data = {
-    "docker.cnf" = "${file("${path.module}/docker.cnf")}"
-  }
-}
-
-resource "kubernetes_job" "mysqldump" {
+resource "kubernetes_deployment" "demo" {
   metadata {
-    name      = "mysqldump"
+    labels = {
+      app = "demo"
+    }
+    name      = "demo"
     namespace = kubernetes_namespace.demo.metadata.0.name
   }
   spec {
+    replicas = 1
+    strategy {
+      type = "Recreate"
+    }
+    selector {
+      match_labels = {
+        app = "demo"
+      }
+    }
     template {
-      metadata {}
+      metadata {
+        labels = {
+          app = "demo"
+        }
+      }
       spec {
         container {
+          #          command = ["bash", "-c", "while true; do sleep 10s; done"]
           env {
-            name  = "MYSQL_ROOT_HOST"
-            value = "127.0.0.1"
+            name  = "POSTGRES_USER"
+            value = "root"
           }
           env {
-            name  = "MYSQL_ROOT_PASSWORD"
-            value = "aaaa"
+            name  = "POSTGRES_PASSWORD"
+            value = "root"
           }
-          name    = "mysql"
-          image   = "mysql:8.0.27"
-          command = ["gosu", "mysql", "mysqld", "--skip-grant-tables"]
-          volume_mount {
-            name       = "mysql-config"
-            mount_path = "/etc/mysql/conf.d"
+          image = "postgres:11.14-bullseye"
+          name  = "postgres"
+          port {
+            container_port = 5432
           }
           volume_mount {
-            name       = "mysql-data"
-            mount_path = "/var/lib/mysql"
+            name       = "postgres-data"
+            mount_path = "/var/lib/postgresql/data"
+          }
+          volume_mount {
+            name       = "postgres-init"
+            mount_path = "/docker-entrypoint-initdb.d"
           }
           volume_mount {
             name       = "mysql-dump"
             mount_path = "/dump"
-          }
-          volume_mount {
-            name       = "mysql-run"
-            mount_path = "/var/run/mysqld"
           }
         }
         container {
-          name  = "mysqldump"
-          image = "mysql:8.0.27"
-
-          command = ["bash", "-c",
-          "while true; do mysqladmin --host=localhost ping && break || sleep 1s; done; mkdir -p /dump/out && chown mysql:mysql /dump/out && mysqldump --host=localhost --tab /dump/out test && ls -ltrash /dump/out/ && mysqladmin --host=localhost shutdown"]
-          volume_mount {
-            name       = "mysql-dump"
-            mount_path = "/dump"
+          env {
+            name  = "DATASOURCE_URL"
+            value = "jdbc:postgresql://localhost/test"
           }
-          volume_mount {
-            name       = "mysql-run"
-            mount_path = "/var/run/mysqld"
+          env {
+            name  = "DATASOURCE_USERNAME"
+            value = "root"
           }
-          security_context {
-            run_as_user = 0
+          env {
+            name  = "DATASOURCE_PASSWORD"
+            value = "root"
           }
-        }
-        volume {
-          name = "mysql-config"
-          config_map {
-            name = kubernetes_config_map.mysql-config.metadata.0.name
+          image             = "nerfdog/springboot-rest-mysql:0.0.3"
+          name              = "springboot-rest-mysql"
+          port {
+            container_port = 8080
           }
         }
         volume {
-          name = "mysql-data"
+          name = "postgres-data"
           host_path {
-            path = "/var/lib/mysql_springboot"
+            path = "/var/lib/postgres_springboot_AAAB"
+          }
+        }
+        volume {
+          name = "postgres-init"
+          config_map {
+            name = kubernetes_config_map.postgres-init.metadata.0.name
           }
         }
         volume {
@@ -100,11 +109,6 @@ resource "kubernetes_job" "mysqldump" {
             path = "/var/lib/mysql_springboot_dump"
           }
         }
-        volume {
-          name = "mysql-run"
-          empty_dir {}
-        }
-        restart_policy = "Never"
       }
     }
   }
